@@ -1,0 +1,5 @@
+numpy
+pillow
+rasterio
+requests
+matplotlib
