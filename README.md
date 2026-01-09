@@ -1,30 +1,63 @@
-# EUMETSAT OSX wallpaper
+# EUMETSAT Linux wallpaper
 
 Python script to create an awesome wallpaper of our earth, as seen by EUMETSAT satellites above Europe.
 
+## Fork notice
+
+This repository is a fork of https://github.com/qchenevier/eumetsat-osx-wallpaper, adapted for Linux use with i3wm or GNOME in mind.
+
+### Changes from upstream
+
+- Switched to pip/venv tooling and Linux-only usage (removed conda and macOS scripts).
+- Added a CLI with arguments for output directory, wallpaper setter (feh or GNOME), and TLS options.
+- Added optional output fitting to a target resolution or auto-detection via xrandr with letterboxing.
+- Updated `run.sh` to bootstrap a `venv/` environment and install dependencies automatically.
+- Removed bundled sample images and the mask helper script to keep the repo lean.
+
 ## Prerequisites
 
-### Anaconda installation
-install conda or miniconda:
-```zsh
-brew install miniconda
-conda init zsh
-```
-
-### Conda environment created
-install the conda environment:
-```zsh
-conda env create -f environment.yml
-```
-it will create a new conda environment, named `eumetsat`
+Linux only. These instructions target Arch Linux and use pip with a virtual environment.
 
 ## Script installation
 
-### Test the script
+### Create a virtual environment
 
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 ```
-zsh generate_earth.zsh
+
+### Run the script
+
+```bash
+./run.sh
 ```
+
+Optional: write to a specific folder and set the wallpaper via feh (i3wm):
+
+```bash
+./run.sh --output-dir ./output --set-wallpaper feh
+```
+
+Optional: set GNOME wallpaper:
+
+```bash
+./run.sh --output-dir ./output --set-wallpaper gnome
+```
+
+Optional: fit the image to a target resolution without stretching:
+
+```bash
+./run.sh --output-dir ./output --resolution 1920x1080
+```
+
+Optional: auto-detect resolution with xrandr:
+
+```bash
+./run.sh --output-dir ./output --auto-resolution
+```
+
 
 ### Create cron job
 
@@ -35,7 +68,7 @@ crontab -e
 
 And add this line to your crontab file (don't forget to replace `PATH_TO_YOUR_FOLDER`):
 ```
-* * * * * cd PATH_TO_YOUR_FOLDER/eumetsat-osx-wallpaper && zsh generate_earth.zsh  >/tmp/stdout.log 2>/tmp/stderr.log
+* * * * * cd PATH_TO_YOUR_FOLDER/eumetsat-osx-wallpaper && /bin/bash -lc 'source .venv/bin/activate && ./run.sh --output-dir ./output' >/tmp/stdout.log 2>/tmp/stderr.log
 ```
 
 You'll be able to check the logs using:
@@ -43,7 +76,6 @@ You'll be able to check the logs using:
 cat /tmp/std*.log
 ```
 
-## To be improved
+## Notes
 
-- [ ] download more sample images from EUMETSAT to generate a proper mask programmatically
-- [ ] refactor code to make it cleaner (modularization, naming, ...)
+- The generated PNG is saved as `earth_YYYY-MM-DD_HH-MM-SS.png` in the output directory.
