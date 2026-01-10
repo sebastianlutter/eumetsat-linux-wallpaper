@@ -133,7 +133,7 @@ def _detect_resolution():
     raise RuntimeError("Unable to detect current resolution from xrandr output.")
 
 
-def _fit_image_to_resolution(image_file, target_width, target_height):
+def _fit_image_to_resolution(image_file, target_width, target_height, offset_y=0):
     from PIL import Image
 
     image = Image.open(image_file)
@@ -150,7 +150,7 @@ def _fit_image_to_resolution(image_file, target_width, target_height):
     resized = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
     canvas = Image.new("RGB", (target_width, target_height), (0, 0, 0))
     offset_x = (target_width - new_width) // 2
-    offset_y = (target_height - new_height) // 2
+    offset_y = (target_height - new_height) // 2 + offset_y
     canvas.paste(resized, (offset_x, offset_y))
     canvas.save(image_file)
 
@@ -233,6 +233,14 @@ def parse_args():
         action="store_true",
         help="Disable TLS verification for the EUMETSAT request.",
     )
+    parser.add_argument(
+        "--offset-y",
+        "--offest-y",
+        dest="offset_y",
+        type=int,
+        default=0,
+        help="Vertical offset in pixels for positioning the image (negative moves up).",
+    )
     return parser.parse_args()
 
 
@@ -243,10 +251,10 @@ def main():
         raise ValueError("Use either --resolution or --auto-resolution, not both.")
     if args.auto_resolution:
         width, height = _detect_resolution()
-        _fit_image_to_resolution(image_file, width, height)
+        _fit_image_to_resolution(image_file, width, height, offset_y=args.offset_y)
     elif args.resolution:
         width, height = _parse_resolution(args.resolution)
-        _fit_image_to_resolution(image_file, width, height)
+        _fit_image_to_resolution(image_file, width, height, offset_y=args.offset_y)
     print(f"Saved wallpaper to {image_file}")
 
     if args.set_wallpaper == "feh":
