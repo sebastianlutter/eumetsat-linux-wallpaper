@@ -1,6 +1,6 @@
 # EUMETSAT Linux wallpaper
 
-Python script to create an awesome wallpaper of our earth, as seen by EUMETSAT satellites above Europe.
+Python script to create an awesome wallpaper of our earth, as seen by EUMETSAT satellites above Europe. The wallpaper comes from real satellite imagery, with sun and cloud positions that match reality (typically only a few hours old).
 
 Example image:
 
