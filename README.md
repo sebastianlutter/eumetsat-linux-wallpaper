@@ -6,6 +6,10 @@ Example image:
 
 ![EUMETSAT example wallpaper](earth_2026-01-11_07-00-00.png)
 
+And here is europa/germany located:
+
+![EUMETSAT europa/germany](earth_germany_1024.png)
+
 ## Fork notice
 
 This repository is a fork of https://github.com/qchenevier/eumetsat-osx-wallpaper, adapted for Linux use with i3wm or GNOME in mind.
