@@ -1,0 +1,12 @@
+[Unit]
+Description=Eumetsat Linux Wallpaper Updater
+
+[Service]
+Type=oneshot
+# CHANGE_ME is replaced by install.sh with the repo path.
+ExecStart=/bin/bash CHANGE_ME/run.sh
+WorkingDirectory=CHANGE_ME
+Environment=DISPLAY=:0
+
+[Install]
+WantedBy=default.target
