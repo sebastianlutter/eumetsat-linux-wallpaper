@@ -16,6 +16,26 @@ if [[ ! -f "$REQS_MARKER" ]]; then
     touch "$REQS_MARKER"
 fi
 
+check_internet() {
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsS --max-time 3 https://www.google.com >/dev/null 2>&1
+    else
+        ping -c 1 -W 2 1.1.1.1 >/dev/null 2>&1
+    fi
+}
+
+attempt=1
+max_attempts=3
+while ! check_internet; do
+    if [[ $attempt -ge $max_attempts ]]; then
+        echo "Error: No internet connection after ${max_attempts} attempts."
+        exit 1
+    fi
+    echo "No internet yet. Retrying in 2 seconds... ($attempt/$max_attempts)"
+    sleep 2
+    attempt=$((attempt + 1))
+done
+
 python3 download_earth_from_eumetsat.py --resolution=3200x2000 "$@"
 
 # 4. Find the most recently created .png file
