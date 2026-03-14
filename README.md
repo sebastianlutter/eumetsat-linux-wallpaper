@@ -515,4 +515,4 @@ go run ./cmd/eumetsat-wallpaper detect
 go run ./cmd/eumetsat-wallpaper run --wallpaper-backend none
 ```
 
-The legacy Python implementation is still present in the repository, but the Go implementation is the active runtime and the source of truth for behavior.
+The Go implementation is the active runtime and the source of truth for behavior.

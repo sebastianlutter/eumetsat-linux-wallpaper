@@ -15,7 +15,7 @@ This project provides a Linux wallpaper updater that:
 - detects the active desktop session reliably from a `systemd --user` timer
 - applies the wallpaper using the best available backend for the running session
 
-The current product is a Go CLI. The older Python file is legacy and is not the source of truth for runtime behavior.
+The current product is a Go CLI.
 
 ## Source Of Truth
 
@@ -33,20 +33,14 @@ Treat the Go implementation as authoritative:
 - `install.go`
 - `uninstall.go`
 
-Support or legacy files:
+Support files:
 
-- `download_earth_from_eumetsat.py`
-  - legacy implementation
-  - may be useful for historical comparison
-  - should not be treated as current behavior documentation
 - `run.sh`
   - development wrapper around `go run`
 - `install.sh`
   - bootstrap installer that builds a temporary binary and delegates to the Go installer
 - `uninstall.sh`
   - bootstrap uninstaller that builds a temporary binary and delegates to the Go uninstaller
-- `wallpaper_service.sh`
-  - helper wrapper for the Go `service` subcommand
 - `eumetsat-wallpaper.service` and `eumetsat-wallpaper.timer`
   - example unit files only
   - the actual installer generates fresh units with absolute paths
@@ -430,7 +424,6 @@ Current intentional limits:
 
 - one wallpaper image is applied across all monitors
 - `hyprpaper` is not auto-started in auto mode
-- the legacy Python implementation is not maintained as a feature-equal fallback
 
 If you change any of these, update both docs and tests.
 
