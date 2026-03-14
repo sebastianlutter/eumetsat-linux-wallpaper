@@ -1,4 +1,8 @@
 earth*.png
 !earth_2026-01-11_07-00-00.png
 !earth_germany_1024.png
+current.png
+.rendered/
+eumetsat-wallpaper
+dist/
 .DS_Store

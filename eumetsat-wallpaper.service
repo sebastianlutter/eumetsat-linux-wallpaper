@@ -1,12 +1,13 @@
 [Unit]
-Description=Eumetsat Linux Wallpaper Updater
+Description=EUMETSAT Linux wallpaper updater (example)
+After=graphical-session.target
+Wants=graphical-session.target
 
 [Service]
 Type=oneshot
-# CHANGE_ME is replaced by install.sh with the repo path.
-ExecStart=/bin/bash CHANGE_ME/run.sh
-WorkingDirectory=CHANGE_ME
-Environment=DISPLAY=:0
+ExecStart=%h/.local/bin/eumetsat-wallpaper run
+WorkingDirectory=%h
+Environment=PATH=%h/.local/bin:%h/bin:/usr/local/bin:/usr/bin
 
 [Install]
 WantedBy=default.target

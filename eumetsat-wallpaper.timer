@@ -1,9 +1,10 @@
 [Unit]
-Description=Run Eumetsat Wallpaper Updater every hour (repo: CHANGE_ME)
+Description=Run EUMETSAT Linux wallpaper updater every 15 minutes (example)
 
 [Timer]
-OnCalendar=hourly
+OnCalendar=*:0/15
 Persistent=true
+Unit=eumetsat-wallpaper.service
 
 [Install]
 WantedBy=timers.target
