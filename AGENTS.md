@@ -432,7 +432,7 @@ If you change any of these, update both docs and tests.
 When working on this repo:
 
 - prefer stdlib-only Go unless a dependency clearly earns its place
-- do not reintroduce Python runtime dependencies for the main product path
+- do not reintroduce avoidable runtime dependencies for the main product path
 - do not rely on a shell login environment for correctness
 - preserve stable, minimal logs
 - keep install behavior user-first

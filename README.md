@@ -83,8 +83,6 @@ Optional runtime tools, depending on your session:
 - `feh`, `xwallpaper`, or `nitrogen` for i3/X11
 - `loginctl`, `systemctl`, `systemd-run`, `xrandr`, `xdpyinfo`, `xwininfo`, `wlr-randr`, and `gdbus` improve detection and resolution handling
 
-The binary does not require Python or a virtual environment.
-
 ## Installation
 
 ### Quick Install
