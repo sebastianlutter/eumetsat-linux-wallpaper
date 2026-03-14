@@ -32,6 +32,11 @@ func Main(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
+	case "uninstall":
+		if err := uninstallSubcommand(ctx, args[1:], stdout, stderr); err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
 	case "service":
 		if err := serviceSubcommand(ctx, args[1:], stdout, stderr); err != nil {
 			fmt.Fprintln(stderr, err)
@@ -176,6 +181,31 @@ func serviceSubcommand(ctx context.Context, args []string, stdout, stderr io.Wri
 	return serviceAction(ctx, action, logger)
 }
 
+func uninstallSubcommand(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	defaults := DefaultConfig()
+	fs := flag.NewFlagSet("uninstall", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	opts := UninstallOptions{}
+	logLevel := defaults.LogLevel
+	fs.StringVar(&opts.ConfigPath, "config", "", "config file path override")
+	fs.StringVar(&opts.BinaryPath, "binary-path", "", "explicit installed binary path to remove")
+	fs.BoolVar(&opts.Purge, "purge", false, "also remove config and cached images")
+	fs.StringVar(&logLevel, "log-level", defaults.LogLevel, "log level")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	logger := NewLogger(logLevel, stdout, stderr)
+	cfg := defaults
+	if strings.TrimSpace(opts.ConfigPath) != "" {
+		loaded, err := LoadConfig(expandPath(opts.ConfigPath))
+		if err != nil {
+			return err
+		}
+		cfg = loaded
+	}
+	return uninstallBinaryAndUnits(ctx, opts, cfg, logger, os.Stdin)
+}
+
 func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage: eumetsat-wallpaper <command> [options]")
 	fmt.Fprintln(w)
@@ -183,6 +213,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  run      Download/select an image and set the wallpaper")
 	fmt.Fprintln(w, "  detect   Print detected session, tools, and backend candidates")
 	fmt.Fprintln(w, "  install  Install the binary, config, and user systemd units")
+	fmt.Fprintln(w, "  uninstall Remove installed units and the installed binary")
 	fmt.Fprintln(w, "  service  Run helper actions: status, list, start, logs")
 }
 

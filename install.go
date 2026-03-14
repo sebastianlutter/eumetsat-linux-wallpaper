@@ -20,6 +20,12 @@ type InstallOptions struct {
 	ForceSystem  bool
 }
 
+type UninstallOptions struct {
+	ConfigPath string
+	BinaryPath string
+	Purge      bool
+}
+
 func installBinaryAndUnits(ctx context.Context, opts InstallOptions, cfg Config, logger *Logger, stdin io.Reader) error {
 	if opts.SourceBinary == "" {
 		executable, err := os.Executable()
@@ -29,6 +35,7 @@ func installBinaryAndUnits(ctx context.Context, opts InstallOptions, cfg Config,
 		opts.SourceBinary = executable
 	}
 	destination := opts.BinaryPath
+	installedWithSudo := false
 	if destination == "" && opts.ForceSystem {
 		destination = "/usr/local/bin/eumetsat-wallpaper"
 	}
@@ -43,23 +50,26 @@ func installBinaryAndUnits(ctx context.Context, opts InstallOptions, cfg Config,
 			return err
 		} else if prompted {
 			destination = "/usr/local/bin/eumetsat-wallpaper"
+			installedWithSudo = true
 		} else {
-			return fmt.Errorf("no writable user binary directory found")
+			return fmt.Errorf("no writable user binary directory found on PATH; use --binary-path or rerun with --force-system")
 		}
 	}
-	if err := copyBinary(opts.SourceBinary, destination); err != nil {
-		if os.IsPermission(err) || strings.Contains(strings.ToLower(err.Error()), "permission denied") {
-			prompted, sudoErr := maybeInstallWithSudo(opts.SourceBinary, logger, stdin)
-			if sudoErr != nil {
-				return sudoErr
-			}
-			if prompted {
-				destination = "/usr/local/bin/eumetsat-wallpaper"
+	if !installedWithSudo {
+		if err := copyBinary(opts.SourceBinary, destination); err != nil {
+			if os.IsPermission(err) || strings.Contains(strings.ToLower(err.Error()), "permission denied") {
+				prompted, sudoErr := maybeInstallWithSudo(opts.SourceBinary, logger, stdin)
+				if sudoErr != nil {
+					return sudoErr
+				}
+				if prompted {
+					destination = "/usr/local/bin/eumetsat-wallpaper"
+				} else {
+					return err
+				}
 			} else {
 				return err
 			}
-		} else {
-			return err
 		}
 	}
 
@@ -71,21 +81,19 @@ func installBinaryAndUnits(ctx context.Context, opts InstallOptions, cfg Config,
 	if err := installUserUnits(destination, cfg); err != nil {
 		return err
 	}
-	if err := runCommand(ctx, logger, nil, "systemctl", "--user", "daemon-reload"); err != nil {
-		return err
-	}
-	if err := runCommand(ctx, logger, nil, "systemctl", "--user", "enable", "--now", defaultTimerName); err != nil {
-		return err
+	if err := restartInstalledUnits(ctx, logger); err != nil {
+		return fmt.Errorf("installed files but failed to restart user units: %w", err)
 	}
 	logger.Infof("installed binary: %s", destination)
 	logger.Infof("installed config: %s", cfg.ConfigPath)
+	logger.Infof("reloaded and started units: %s, %s", defaultServiceName, defaultTimerName)
 	logger.Infof("enabled timer: %s (%s)", defaultTimerName, cfg.OnCalendar)
 	return nil
 }
 
 func chooseBinaryDestination() (string, error) {
 	uid := os.Getuid()
-	candidates := candidateBinaryDirs()
+	candidates := candidateBinaryDirs(os.Getenv("PATH"))
 	for _, dir := range candidates {
 		if dir == "" {
 			continue
@@ -106,16 +114,19 @@ func chooseBinaryDestination() (string, error) {
 		}
 		return filepath.Join(dir, "eumetsat-wallpaper"), nil
 	}
-	return "", fmt.Errorf("no writable user binary directory found")
+	return "", fmt.Errorf("no writable user binary directory found on PATH")
 }
 
-func candidateBinaryDirs() []string {
+func candidateBinaryDirs(pathEnv string) []string {
 	home := userHomeDir()
 	var candidates []string
 	if value := os.Getenv("XDG_BIN_HOME"); value != "" {
-		candidates = append(candidates, expandPath(value))
+		dir := expandPath(value)
+		if pathContainsDir(pathEnv, dir) {
+			candidates = append(candidates, dir)
+		}
 	}
-	for _, entry := range filepath.SplitList(os.Getenv("PATH")) {
+	for _, entry := range pathEntries(pathEnv) {
 		entry = strings.TrimSpace(entry)
 		if entry == "" || !filepath.IsAbs(entry) {
 			continue
@@ -128,11 +139,43 @@ func candidateBinaryDirs() []string {
 	if path, err := exec.LookPath("systemd-path"); err == nil {
 		_ = path
 		if result, err := commandOutput(context.Background(), nil, "systemd-path", "user-binaries"); err == nil {
-			candidates = append(candidates, strings.TrimSpace(result.Stdout))
+			dir := strings.TrimSpace(result.Stdout)
+			if pathContainsDir(pathEnv, dir) {
+				candidates = append(candidates, dir)
+			}
 		}
 	}
-	candidates = append(candidates, filepath.Join(home, ".local", "bin"))
+	localBin := filepath.Join(home, ".local", "bin")
+	if pathContainsDir(pathEnv, localBin) {
+		candidates = append(candidates, localBin)
+	}
 	return uniqueStrings(candidates)
+}
+
+func pathEntries(pathEnv string) []string {
+	entries := filepath.SplitList(pathEnv)
+	result := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		result = append(result, filepath.Clean(expandPath(entry)))
+	}
+	return uniqueStrings(result)
+}
+
+func pathContainsDir(pathEnv, dir string) bool {
+	if strings.TrimSpace(dir) == "" {
+		return false
+	}
+	target := filepath.Clean(expandPath(dir))
+	for _, entry := range pathEntries(pathEnv) {
+		if entry == target {
+			return true
+		}
+	}
+	return false
 }
 
 func copyBinary(sourcePath, destinationPath string) error {
@@ -167,7 +210,7 @@ func maybeInstallWithSudo(sourceBinary string, logger *Logger, stdin io.Reader) 
 		return false, nil
 	}
 	reader := bufio.NewReader(stdin)
-	fmt.Fprint(os.Stdout, "No writable user bin directory found. Install to /usr/local/bin with sudo? [y/N] ")
+	fmt.Fprint(os.Stdout, "No writable user bin directory on PATH was found. Install to /usr/local/bin with sudo? [y/N] ")
 	answer, err := reader.ReadString('\n')
 	if err != nil && err != io.EOF {
 		return false, err
@@ -185,10 +228,7 @@ func maybeInstallWithSudo(sourceBinary string, logger *Logger, stdin io.Reader) 
 }
 
 func installUserUnits(binaryPath string, cfg Config) error {
-	userDir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "systemd", "user")
-	if userDir == "" || userDir == filepath.Join("", "systemd", "user") {
-		userDir = filepath.Join(userHomeDir(), ".config", "systemd", "user")
-	}
+	userDir := userSystemdDir()
 	if err := ensureDir(userDir); err != nil {
 		return err
 	}
@@ -200,6 +240,23 @@ func installUserUnits(binaryPath string, cfg Config) error {
 	if err := os.WriteFile(timerPath, []byte(renderTimerUnit(cfg.OnCalendar)), 0o644); err != nil {
 		return err
 	}
+	return nil
+}
+
+func restartInstalledUnits(ctx context.Context, logger *Logger) error {
+	stopInstalledUnits(ctx, logger)
+	if err := runCommand(ctx, logger, nil, "systemctl", "--user", "daemon-reload"); err != nil {
+		return err
+	}
+	runCommandBestEffort(ctx, logger, nil, "systemctl", "--user", "reset-failed", defaultServiceName, defaultTimerName, swaybgUnit, swwwUnit)
+	if err := runCommand(ctx, logger, nil, "systemctl", "--user", "enable", "--now", defaultTimerName); err != nil {
+		return err
+	}
+	logger.Infof("starting immediate wallpaper refresh via %s", defaultServiceName)
+	if err := runCommand(ctx, logger, nil, "systemctl", "--user", "start", defaultServiceName); err != nil {
+		return err
+	}
+	logger.Infof("immediate wallpaper refresh finished")
 	return nil
 }
 
@@ -234,6 +291,14 @@ Unit=%s
 [Install]
 WantedBy=timers.target
 `, onCalendar, defaultServiceName)) + "\n"
+}
+
+func userSystemdDir() string {
+	configDir := os.Getenv("XDG_CONFIG_HOME")
+	if configDir == "" {
+		configDir = filepath.Join(userHomeDir(), ".config")
+	}
+	return filepath.Join(configDir, "systemd", "user")
 }
 
 func serviceAction(ctx context.Context, action string, logger *Logger) error {
