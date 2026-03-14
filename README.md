@@ -100,17 +100,19 @@ From the repository root:
 1. chooses an install location for the binary
 2. writes the config file if it does not already exist
 3. writes the user systemd service and timer units
-4. reloads the user daemon
-5. enables and starts the timer
+4. stops old timer, service, and managed wallpaper helper units
+5. reloads the user daemon and clears stale failure state
+6. enables and starts the timer
+7. starts the service once immediately so the new install is exercised right away
 
 The installer prefers these user-level binary targets in order:
 
-1. `$XDG_BIN_HOME`
+1. `$XDG_BIN_HOME`, but only if it is already on `PATH`
 2. writable user-owned directories already on `PATH`
-3. `systemd-path user-binaries`
-4. `~/.local/bin`
+3. `systemd-path user-binaries`, but only if that directory is on `PATH`
+4. `~/.local/bin`, but only if it is on `PATH`
 
-If no suitable user target is available, it can prompt to install into `/usr/local/bin` with `sudo`.
+If no suitable user target is available on `PATH`, the installer prompts to install into `/usr/local/bin` with `sudo` instead of silently choosing a location you cannot call from the terminal.
 
 ### Build First, Install Second
 
@@ -144,57 +146,55 @@ This refreshes the installed binary and rewrites the generated systemd units. Yo
 
 ## Uninstall
 
-There is currently no dedicated `uninstall` subcommand. Uninstall is manual.
-
-### 1. Stop And Disable The Timer
+The repository now includes a dedicated uninstall wrapper:
 
 ```bash
-systemctl --user disable --now eumetsat-wallpaper.timer
+./uninstall.sh
 ```
 
-### 2. Remove The User Units
+It builds a temporary helper binary and removes:
+
+- the user timer
+- the user service
+- transient managed wallpaper units started by this project
+- the installed `eumetsat-wallpaper` binary
+
+By default, uninstall keeps your config file and cached images.
+
+If the installed binary is in a protected location such as `/usr/local/bin`, the uninstaller prompts for `sudo` before removing it.
+
+### Remove Everything Including User Data
 
 ```bash
-rm -f ~/.config/systemd/user/eumetsat-wallpaper.service
-rm -f ~/.config/systemd/user/eumetsat-wallpaper.timer
-systemctl --user daemon-reload
+./uninstall.sh --purge
 ```
 
-### 3. Remove The Installed Binary
+`--purge` additionally removes:
 
-First check where the binary was installed:
+- `~/.config/eumetsat-wallpaper.conf` or your custom config path
+- the configured image cache directory, usually `~/Bilder/eumetsat-wallpaper`
+
+### Uninstall Via The Installed Binary
+
+If the binary is available on your `PATH`, you can run:
 
 ```bash
-command -v eumetsat-wallpaper
+eumetsat-wallpaper uninstall
 ```
 
-Common locations:
-
-- `~/.local/bin/eumetsat-wallpaper`
-- another user-owned bin directory from `PATH`
-- `/usr/local/bin/eumetsat-wallpaper`
-
-If it was installed system-wide, removal usually requires:
+or:
 
 ```bash
-sudo rm -f /usr/local/bin/eumetsat-wallpaper
+eumetsat-wallpaper uninstall --purge
 ```
 
-### 4. Optionally Remove User Data
+`./uninstall.sh` is the safer default because it does not depend on the installed binary being reachable from your current shell.
 
-Remove config:
+If you used a custom install path or config path and the generated service unit is no longer present, you can still override discovery explicitly:
 
 ```bash
-rm -f ~/.config/eumetsat-wallpaper.conf
+./uninstall.sh --binary-path /custom/bin/eumetsat-wallpaper --config /custom/config/eumetsat-wallpaper.conf
 ```
-
-Remove cached images:
-
-```bash
-rm -rf ~/Bilder/eumetsat-wallpaper
-```
-
-Only remove the image directory if you no longer want to keep the downloaded history.
 
 ## Usage
 

@@ -31,6 +31,7 @@ Treat the Go implementation as authoritative:
 - `cache.go`
 - `backend.go`
 - `install.go`
+- `uninstall.go`
 
 Support or legacy files:
 
@@ -42,6 +43,8 @@ Support or legacy files:
   - development wrapper around `go run`
 - `install.sh`
   - bootstrap installer that builds a temporary binary and delegates to the Go installer
+- `uninstall.sh`
+  - bootstrap uninstaller that builds a temporary binary and delegates to the Go uninstaller
 - `wallpaper_service.sh`
   - helper wrapper for the Go `service` subcommand
 - `eumetsat-wallpaper.service` and `eumetsat-wallpaper.timer`
@@ -301,22 +304,46 @@ Current installer behavior:
 - prefers user-level installation
 - writes the config file only if it does not already exist
 - always regenerates the systemd units
+- stops old timer, service, and managed helper units before reloading
+- resets stale failed state and starts the service once after install
 - uses absolute paths in generated units
 
 User install target priority:
 
-1. `XDG_BIN_HOME`
+1. `XDG_BIN_HOME` if it is already on `PATH`
 2. writable user-owned directories already on `PATH`
-3. `systemd-path user-binaries`
-4. `~/.local/bin`
+3. `systemd-path user-binaries` if it is on `PATH`
+4. `~/.local/bin` if it is on `PATH`
 
 System install fallback:
 
 - `/usr/local/bin/eumetsat-wallpaper`
 
+Important installer rule:
+
+- do not silently install into a user-local directory that is not on the user’s interactive `PATH`
+- if no suitable user dir on `PATH` exists, prefer prompting for sudo and using `/usr/local/bin`
+
 Do not hardcode repository paths into generated units.
 
 The installed service must continue to work even if the git checkout is moved or deleted.
+
+## Uninstall Behavior
+
+Important files:
+
+- `uninstall.go`
+- `uninstall.sh`
+
+Current uninstall behavior:
+
+- the CLI has an `uninstall` subcommand
+- `uninstall.sh` is the preferred repo-level entry point because it does not depend on the installed binary being on `PATH`
+- uninstall removes generated user units and the installed binary
+- uninstall preserves config and cached images unless `--purge` is passed
+- uninstall discovers the installed binary and config path from the generated service unit before falling back to common locations
+
+Preserve that service-unit discovery path unless the install state model is redesigned deliberately.
 
 ## CLI And Config Precedence
 
@@ -402,7 +429,6 @@ Do not let them drift apart.
 Current intentional limits:
 
 - one wallpaper image is applied across all monitors
-- there is no dedicated `uninstall` subcommand yet
 - `hyprpaper` is not auto-started in auto mode
 - the legacy Python implementation is not maintained as a feature-equal fallback
 
