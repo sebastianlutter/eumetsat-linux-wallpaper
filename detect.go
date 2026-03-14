@@ -68,6 +68,7 @@ func resolveSession(cfg Config, inputs DetectionInputs) SessionInfo {
 	session := SessionInfo{
 		Environment: mergeMaps(inputs.BaseEnv, inputs.UserManagerEnv),
 	}
+	loginDesktop := ""
 
 	if cfg.WindowManager != "" {
 		session.WindowManager = normalizeWindowManager(cfg.WindowManager)
@@ -82,9 +83,10 @@ func resolveSession(cfg Config, inputs DetectionInputs) SessionInfo {
 
 	activeLogin := pickActiveLoginctlSession(inputs.LoginSessions)
 	if activeLogin.ID != "" {
+		loginDesktop = normalizeWindowManager(activeLogin.Desktop)
 		if session.WindowManager == "" {
-			session.WindowManager = normalizeWindowManager(strings.TrimSpace(nonEmpty(activeLogin.Desktop, activeLogin.Name)))
-			if session.WindowManager != "" {
+			if isSupportedWindowManager(loginDesktop) {
+				session.WindowManager = loginDesktop
 				session.Source = "loginctl"
 			}
 		}
@@ -101,9 +103,10 @@ func resolveSession(cfg Config, inputs DetectionInputs) SessionInfo {
 	matchedProcess := pickWMProcess(inputs.Processes, session.Environment)
 	if matchedProcess.PID > 0 {
 		session.Environment = mergeMaps(session.Environment, matchedProcess.Env)
-		if session.WindowManager == "" {
-			session.WindowManager = processToWindowManager(matchedProcess.Comm, matchedProcess.Args)
-			if session.WindowManager != "" {
+		detectedWM := processToWindowManager(matchedProcess.Comm, matchedProcess.Args)
+		if session.WindowManager == "" || shouldOverrideDetectedWindowManager(session.Source, session.WindowManager) {
+			session.WindowManager = detectedWM
+			if detectedWM != "" {
 				session.Source = "process"
 			}
 		}
@@ -112,7 +115,7 @@ func resolveSession(cfg Config, inputs DetectionInputs) SessionInfo {
 		}
 	}
 
-	if session.WindowManager == "" {
+	if session.WindowManager == "" || shouldOverrideDetectedWindowManager(session.Source, session.WindowManager) {
 		session.WindowManager = inferWindowManagerFromEnv(session.Environment)
 		if session.WindowManager != "" {
 			session.Source = "environment"
@@ -129,6 +132,7 @@ func resolveSession(cfg Config, inputs DetectionInputs) SessionInfo {
 		session.Environment["XDG_CURRENT_DESKTOP"],
 		session.Environment["XDG_SESSION_DESKTOP"],
 		session.Environment["DESKTOP_SESSION"],
+		loginDesktop,
 		session.WindowManager,
 	)
 	if session.Source == "" {
@@ -349,6 +353,22 @@ func processToWindowManager(comm, args string) string {
 	default:
 		return ""
 	}
+}
+
+func isSupportedWindowManager(wm string) bool {
+	switch normalizeWindowManager(wm) {
+	case "hyprland", "gnome", "sway", "i3":
+		return true
+	default:
+		return false
+	}
+}
+
+func shouldOverrideDetectedWindowManager(source, wm string) bool {
+	if source == "config" {
+		return false
+	}
+	return !isSupportedWindowManager(wm)
 }
 
 func inferWindowManagerFromEnv(env map[string]string) string {

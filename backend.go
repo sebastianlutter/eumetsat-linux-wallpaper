@@ -47,7 +47,7 @@ func applyWallpaper(ctx context.Context, cfg Config, session SessionInfo, image 
 		return runCommand(ctx, logger, session.Environment, "swaymsg", "output", "*", "bg", resolvePath(image.WallpaperPath), "fill")
 	case "swaybg":
 		if _, hasPkill := session.AvailableTools["pkill"]; hasPkill {
-			_ = runCommand(ctx, logger, session.Environment, "pkill", "swaybg")
+			runCommandBestEffort(ctx, logger, session.Environment, "pkill", "swaybg")
 		}
 		return ensureManagedCommand(ctx, logger, session.Environment, swaybgUnit, "swaybg", "-m", "fill", "-i", resolvePath(image.WallpaperPath))
 	case "feh":
@@ -147,7 +147,7 @@ func expandWallpaperCommand(template string, image SelectedImage) string {
 func ensureManagedCommand(ctx context.Context, logger *Logger, env map[string]string, unit string, name string, args ...string) error {
 	if _, ok := detectTools()["systemd-run"]; ok {
 		if _, hasSystemctl := detectTools()["systemctl"]; hasSystemctl {
-			_ = runCommand(ctx, logger, env, "systemctl", "--user", "stop", unit)
+			runCommandBestEffort(ctx, logger, env, "systemctl", "--user", "stop", unit)
 		}
 		systemdArgs := []string{"--user", "--unit", unit, "--collect", "--property=Type=simple", name}
 		systemdArgs = append(systemdArgs, args...)

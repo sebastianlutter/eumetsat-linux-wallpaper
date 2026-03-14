@@ -56,3 +56,78 @@ func TestDetectAvailableBackendsForHyprland(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveSessionIgnoresLoginctlUserNameAndUsesProcessWM(t *testing.T) {
+	cfg := DefaultConfig()
+	inputs := DetectionInputs{
+		BaseEnv: map[string]string{
+			"XDG_CURRENT_DESKTOP": "Hyprland",
+			"WAYLAND_DISPLAY":     "wayland-1",
+		},
+		LoginSessions: []LoginctlSession{
+			{
+				ID:      "2",
+				Name:    "myself",
+				Type:    "wayland",
+				Desktop: "",
+				Active:  true,
+				State:   "active",
+				Class:   "user",
+			},
+		},
+		Processes: []ProcessInfo{
+			{
+				PID:  42,
+				Comm: "Hyprland",
+				Args: "Hyprland",
+				Env: map[string]string{
+					"HYPRLAND_INSTANCE_SIGNATURE": "sig",
+					"WAYLAND_DISPLAY":             "wayland-1",
+				},
+			},
+		},
+	}
+
+	session := resolveSession(cfg, inputs)
+	if session.WindowManager != "hyprland" {
+		t.Fatalf("WindowManager = %q, want hyprland", session.WindowManager)
+	}
+	if session.Source != "process" {
+		t.Fatalf("Source = %q, want process", session.Source)
+	}
+	if session.SessionType != "wayland" {
+		t.Fatalf("SessionType = %q, want wayland", session.SessionType)
+	}
+}
+
+func TestResolveSessionFallsBackToEnvironmentWhenLoginctlDesktopIsEmpty(t *testing.T) {
+	cfg := DefaultConfig()
+	inputs := DetectionInputs{
+		BaseEnv: map[string]string{
+			"XDG_CURRENT_DESKTOP": "Hyprland",
+			"WAYLAND_DISPLAY":     "wayland-1",
+		},
+		LoginSessions: []LoginctlSession{
+			{
+				ID:      "2",
+				Name:    "myself",
+				Type:    "wayland",
+				Desktop: "",
+				Active:  true,
+				State:   "active",
+				Class:   "user",
+			},
+		},
+	}
+
+	session := resolveSession(cfg, inputs)
+	if session.WindowManager != "hyprland" {
+		t.Fatalf("WindowManager = %q, want hyprland", session.WindowManager)
+	}
+	if session.Source != "environment" {
+		t.Fatalf("Source = %q, want environment", session.Source)
+	}
+	if session.DesktopName != "Hyprland" {
+		t.Fatalf("DesktopName = %q, want Hyprland", session.DesktopName)
+	}
+}
